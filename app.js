@@ -48,6 +48,10 @@ app.configure(function(){
     });
   }
 
+  if (process.env.NODE_ENV !== 'production') {
+    app.use(express.logger('dev'));
+  }
+
   app.use(express.urlencoded());
   app.use(express.json());
   app.use(express.compress());
@@ -154,20 +158,16 @@ app.get('/vote/libs/:username/:scriptname/:vote', script.lib(script.vote));
 app.get(listRegex('\/use\/lib\/([^\/]+?)\/([^\/]+?)', 'script'), script.useLib);
 
 // Issues routes
-app.get(listRegex('\/(scripts|libs)\/([^\/]+?)\/([^\/]+?)(?:\/([^\/]+?))?'
-  + '\/issues(?:\/(closed))?', ''), issue.list);
-app.get(listRegex('\/(scripts|libs)\/([^\/]+?)\/([^\/]+?)(?:\/([^\/]+?))?'
-  + '\/issues\/([^\/]+?)', ''), issue.view);
-app.get('/:type(scripts|libs)/:username/:scriptname/issue/new', issue.open);
-app.get('/:type(scripts|libs)/:username/:namespace/:scriptname/issue/new',
-  issue.open);
-app.post('/:type(scripts|libs)/:username/:scriptname/issue/new', issue.open);
-app.post('/:type(scripts|libs)/:username/:namespace/:scriptname/issue/new',
-  issue.open);
-app.post('/:type(scripts|libs)/:username/:scriptname/issues/:topic',
-  issue.comment);
-app.post('/:type(scripts|libs)/:username/:namespace/:scriptname/issues/:topic',
-  issue.comment);
+app_route('/:type(scripts|libs)/:username/:namespace?/:scriptname/issues/:open(closed)?').get(issue.list);
+// app_route('/:type(scripts|libs)/:username/:namespace?/:scriptname/issues/:topic').get(issue.view);
+app_route('/:type(scripts|libs)/:username/:namespace?/:scriptname/issue/new').get(issue.open).post(issue.open);
+app_route('/:type(scripts|libs)/:username/:namespace?/:scriptname/issues/:topic').get(issue.view);
+
+// Issues routes: Legacy
+app.get(listRegex('\/(scripts|libs)\/([^\/]+?)\/([^\/]+?)(?:\/([^\/]+?))?' + '\/issues\/([^\/]+?)', ''), issue.view);
+app_route('/:type(scripts|libs)/:username/:namespace?/:scriptname/open').post(issue.open);
+app.post('/:type(scripts|libs)/:username/:scriptname/issues/:topic', issue.comment);
+app.post('/:type(scripts|libs)/:username/:namespace/:scriptname/issues/:topic', issue.comment);
 app.get('/:type(scripts|libs)/:username/:scriptname/issues/:topic/:action(close|reopen)', issue.changeStatus);
 app.get('/:type(scripts|libs)/:username/:namespace/:scriptname/issues/:topic/:action(close|reopen)', issue.changeStatus);
 
@@ -194,6 +194,7 @@ app_route('/group/:groupname').get(group.view);
 app_route('/api/group/search/:term/:addTerm?').get(group.search);
 
 // Discussion routes
+app_route('/forum').get(discussion.categoryListPage);
 app.get(listRegex('\/(corner|garage|discuss)', ''), discussion.list);
 app.get(listRegex('\/(corner|garage|discuss)\/([^\/]+?)', ''), discussion.show);
 app.get('/post/:category(corner|garage|discuss)', discussion.newTopic);

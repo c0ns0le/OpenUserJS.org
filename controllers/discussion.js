@@ -10,6 +10,7 @@ var modelParser = require('../libs/modelParser');
 var modelQuery = require('../libs/modelQuery');
 var cleanFilename = require('../libs/helpers').cleanFilename;
 var getDefaultPagination = require('../libs/templateHelpers').getDefaultPagination;
+var execQueryTask = require('../libs/tasks').execQueryTask;
 
 var categories = [
   {
@@ -29,10 +30,67 @@ var categories = [
   },
 ];
 
-_.each(categories, function(category){
-  category.categoryPageUrl = '/' + category.slug;
-  category.categoryPostDiscussionPageUrl = '/post/' + category.slug;
-});
+exports.categoryListPage = function (req, res, next) {
+  var authedUser = req.session.user;
+
+  //
+  var options = {};
+  var tasks = [];
+
+  // Session
+  authedUser = options.authedUser = modelParser.parseUser(authedUser);
+  options.isMod = authedUser && authedUser.isMod;
+  options.isAdmin = authedUser && authedUser.isAdmin;
+
+  // Metadata
+  options.title = 'OpenUserJS.org';
+  options.pageMetaDescription = '.';
+  options.pageMetaKeywords = null;
+
+  // CategoryList
+  options.categoryList = _.map(categories, modelParser.parseCategory);
+
+  options.multipleCategories = true;
+
+  // DiscussionListQuery
+  var discussionListQuery = Discussion.find();
+
+  // DiscussionListQuery: Defaults
+  modelQuery.applyDiscussionListQueryDefaults(discussionListQuery, options, req);
+
+  // DiscussionListQuery: Pagination
+  var pagination = options.pagination; // is set in modelQuery.apply___ListQueryDefaults
+
+  //--- Tasks
+  
+  // Pagination
+  tasks.push(pagination.getCountTask(discussionListQuery));
+
+  // DiscussionListQuery
+  tasks.push(execQueryTask(discussionListQuery, options, 'discussionList'));
+
+  //---
+  function preRender(){
+    // discussionList
+    options.discussionList = _.map(options.discussionList, modelParser.parseDiscussion);
+    _.map(options.discussionList, function(discussion){
+      var category = _.findWhere(categories, {slug: discussion.category});
+      if (!category) {
+        category = {
+          name: discussion.category,
+          slug: discussion.category,
+        };
+      }
+      discussion.category = modelParser.parseCategory(category);
+    });
+
+    // Pagination
+    options.paginationRendered = pagination.renderDefault(req);
+  };
+  function render(){ res.render('pages/categoryListPage', options); }
+  function asyncComplete(){ preRender(); render(); }
+  async.parallel(tasks, asyncComplete);
+};
 
 // List discussions for one of the three categories
 exports.list = function (req, res, next) {
@@ -50,66 +108,42 @@ exports.list = function (req, res, next) {
 
   // Session
   authedUser = options.authedUser = modelParser.parseUser(authedUser);
-  options.isMod = authedUser && authedUser.role < 4;
+  options.isMod = authedUser && authedUser.isMod;
+  options.isAdmin = authedUser && authedUser.isAdmin;
 
-  //
-  options.category = category;
+  // Category
+  category = options.category = modelParser.parseCategory(category);
+
+  // Metadata
   options.title = category.name + ' | OpenUserJS.org';
   options.pageMetaDescription = category.description;
   options.pageMetaKeywords = null; // seperator = ', '
 
-  // Discussion: Query
+  // DiscussionListQuery
   var discussionListQuery = Discussion.find();
 
-  // Discussion: Query: category
+  // DiscussionListQuery: category
   discussionListQuery.find({category: category.slug});
+  
+  // DiscussionListQuery: Defaults
+  modelQuery.applyDiscussionListQueryDefaults(discussionListQuery, options, req);
 
-  // Scripts: Query: flagged
-  // Only list flagged scripts for author and user >= moderator
-  if (options.isYou || options.isMod) {
-    // Show
-  } else {
-    // Script.flagged is undefined by default.
-    discussionListQuery.find({flagged: {$ne: true}}); 
-  }
-
-  // Scripts: Query: Search
-  if (req.query.q)
-    modelQuery.parseDiscussionSearchQuery(discussionListQuery, req.query.q);
-
-  // Scripts: Query: Sort
-  modelQuery.parseModelListSort(discussionListQuery, req.query.orderBy, req.query.orderDir, function(){
-    discussionListQuery.sort('-updated -rating');
-  });
-
-  // Pagination
-  var pagination = getDefaultPagination(req);
-  pagination.applyToQuery(discussionListQuery);
+  // DiscussionListQuery: Pagination
+  var pagination = options.pagination; // is set in modelQuery.apply___ListQueryDefaults
 
   //--- Tasks
 
   // Pagination
   tasks.push(pagination.getCountTask(discussionListQuery));
 
-  // User scripList
-  tasks.push(function (callback) {
-    discussionListQuery.exec(function(err, discussionDataList){
-      if (err) {
-        callback();
-      } else {
-        options.discussionList = _.map(discussionDataList, modelParser.parseDiscussion);
-        callback();
-      }
-    });
-  });
+  // DiscussionListQuery
+  tasks.push(execQueryTask(discussionListQuery, options, 'discussionList'));
 
-  var getPageUrlFn = function(baseUrl, queryVarName) {
-    return function(p) {
-      return replaceUrlQueryVar(baseUrl, queryVarName, p);
-    };
-  };
-
+  //---
   function preRender(){
+    // discussionList
+    options.discussionList = _.map(options.discussionList, modelParser.parseDiscussion);
+
     // Pagination
     options.paginationRendered = pagination.renderDefault(req);
   };
@@ -158,11 +192,13 @@ exports.show = function (req, res, next) {
     authedUser = options.authedUser = modelParser.parseUser(authedUser);
     options.isMod = authedUser && authedUser.role < 4;
 
-    //
-    options.category = category;
+    // Category
+    category = options.category = modelParser.parseCategory(category);
 
-    //
+    // Discussion
     var discussion = options.discussion = modelParser.parseDiscussion(discussionData);
+
+    // Metadata
     options.title = discussion.topic + ' | OpenUserJS.org';
     options.pageMetaDescription = discussion.topic;
     options.pageMetaKeywords = null; // seperator = ', '
@@ -208,26 +244,18 @@ exports.show = function (req, res, next) {
     tasks.push(pagination.getCountTask(commentListQuery));
 
     // Comments
-    tasks.push(function (callback) {
-      commentListQuery.exec(function(err, commentDataList){
-        if (err) {
-          callback();
-        } else {
-          options.commentList = _.map(commentDataList, modelParser.parseComment);
-          _.map(options.commentList, function(comment){
-            comment.author = modelParser.parseUser(comment._authorId);
-          });
-          callback();
-        }
-      });
-    });
+    tasks.push(execQueryTask(commentListQuery, options, 'commentList'));
 
     function preRender(){
+      // commentList
+      options.commentList = _.map(options.commentList, modelParser.parseComment);
+      _.map(options.commentList, function(comment){
+        comment.author = modelParser.parseUser(comment._authorId);
+      });
+      _.map(options.commentList, modelParser.renderComment);
+
       // Pagination
       options.paginationRendered = pagination.renderDefault(req);
-
-      // Render
-      _.map(options.commentList, modelParser.renderComment);
     };
     function render(){ res.render('pages/discussionPage', options); }
     function asyncComplete(){ preRender(); render(); }

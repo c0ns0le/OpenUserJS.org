@@ -14,8 +14,8 @@
           <div class="col-xs-12">
             <div class="topic-title row container-fluid">
               <ol class="breadcrumb pull-left">
-                <li class="active"><a href="{{{category.categoryPageUrl}}}">{{category.name}}</a></li>
-                <li class=""><a href="{{{discussion.discussionPageUrl}}}">{{discussion.topic}}</a></li>
+                <li class=""><a href="{{{category.categoryPageUrl}}}">{{category.name}}</a></li>
+                <li class="active"><a href="{{{discussion.discussionPageUrl}}}">{{discussion.topic}}</a></li>
               </ol>
             </div>            
             <div class="container-fluid comments">
@@ -39,41 +39,12 @@
     </div>
   </div>
 
-  <div id="reply-control" class="collapse">
-    <form action="{{{discussion.discussionPageUrl}}}" method="post">
-      <div class="container-fluid row user-content">
-
-        <div class="submit-panel pull-right btn-toolbar">
-          <button class="btn btn-sm btn-success" type="submit">Reply</button>
-          <button class="btn btn-sm btn-danger" type="button" data-toggle="collapse" data-target="#reply-control">Cancel</button>
-        </div>
-        <textarea name="comment-content" data-provide="markdown" data-iconlibrary="fa" class="col-xs-12" placeholder="Type here using Markdown."></textarea>
-      </div>
-    </form>
-  </div>
+  {{> includes/commentForm.html }}
 
   {{> includes/footer.html }}
   <!-- Markdown Editor -->
   <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/marked/0.3.2/marked.min.js"></script>
   <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/bootstrap-markdown/2.2.1/js/bootstrap-markdown.js"></script>
-  <script type="text/javascript">
-    $('.btn-comment-reply').click(function(e){
-      $('#reply-control').collapse('show');
-
-      var $comment = $(e.target).closest('.topic-post');
-      var $author = $comment.find('.topic-meta-data .names .username').first();
-      var $replyTextarea = $('#reply-control textarea[name="comment-content"');
-
-      document.location.hash = $comment.attr('id');
-
-      var text = $replyTextarea.text();
-      if (!/^\s*$/.test(text))
-        text += '\n\n'; // Add linebreak if reply already started.
-      text += '[Re](' + document.location.href + '): ';
-      text += '[@' + $author.text() + '](' + $author.attr('href') + '): ';
-      text += '  \n';
-      $replyTextarea.text(text);
-    });
-  </script>
+  {{> includes/scripts/commentReplyScript.html }}
 </body>
 </html>
