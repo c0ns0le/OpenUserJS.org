@@ -19,6 +19,7 @@ var removeLib = require('../libs/remove');
 var strategies = require('./strategies.json');
 var renderMd = require('../libs/markdown').renderMd;
 var nil = require('../libs/helpers').nil;
+var runInParallel = require('../libs/helpers').runInParallel;
 var getDefaultPagination = require('../libs/templateHelpers').getDefaultPagination;
 
 var setupFlagUserUITask = function(options) {
@@ -815,17 +816,9 @@ exports.editScript = function (req, res, next) {
   });
 
   //---
-  function preRender (){};
+  function preRender (){}
   function render () { res.render('pages/ScriptViewSourcePage', options); }
-  function asyncComplete (err) {
-    if (err) {
-      next();
-    } else {
-      preRender();
-      render();
-    }
-  }
-  async.parallel(tasks, asyncComplete);
+  runInParallel(tasks, [preRender, render], next);
 };
 
 // route to flag a user

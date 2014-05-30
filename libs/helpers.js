@@ -1,4 +1,5 @@
 var url = require("url");
+var async = require('async');
 
 var months = [
   'Jan',
@@ -87,18 +88,39 @@ exports.cleanFilename = function (filename, defaultName) {
   return cleanName || defaultName;
 };
 
-exports.limitRange = function(min, x, max) {
+exports.limitRange = function (min, x, max) {
   return Math.max(Math.min(x, max), min);
 };
 
-exports.limitMin = function(min, x) {
+exports.limitMin = function (min, x) {
   return Math.max(x, min);
 };
 
-exports.setUrlQueryValue = function(baseUrl, queryVarKey, queryVarValue) {
+exports.setUrlQueryValue = function (baseUrl, queryVarKey, queryVarValue) {
   var parseQueryString = true;
   var u = url.parse(baseUrl, parseQueryString);
   u.query[queryVarKey] = queryVarValue;
   delete u.search; // http://stackoverflow.com/a/7517673/947742
   return url.format(u);
+};
+
+// Runs an array of task functions in parallel
+// If they complete with no errors, calls a complete function(s)
+// If an error occurs, a error handler is called optionally
+exports.runInParallel = function (tasks, complete, errHandler) {
+  async.parallel(tasks, function (err, results) {
+    if (err) {
+      if (errHandler) {
+        errHandler(); // probs should pass 'err' but meh...
+      }
+    } else {
+      if (complete instanceof Array) {
+        complete.forEach(function (cb) {
+          cb(results);
+        });
+      } else {
+        complete(results);
+      }
+    }
+  });
 };
