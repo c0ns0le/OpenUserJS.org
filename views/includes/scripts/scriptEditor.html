@@ -27,11 +27,50 @@
 
       {{#readOnly}}editor.setReadOnly(true);{{/readOnly}}
       {{^readOnly}}
-      // TODO: Submit using AJAX
-      $('#submit_code').click(function () {
-        $('#source').val(editor.getValue());
-        $('#code_form').submit();
-      });
+  function sendData() {
+    var xhr = new XMLHttpRequest();
+    var boundary = "--------------------oujs";
+    var data = "";
+
+    function addField(name) {
+      if (!$('#' + name)) { return; }
+      data += boundary + "\r\n";
+      data += 'Content-Disposition: form-data; name="' + name + '"\r\n';
+      data += '\r\n';
+      data += $('#' + name).val() + "\r\n";
+    }
+
+    addField('url');
+    addField('original');
+    addField('script_name');
+    data += boundary + "\r\n";
+    data += 'Content-Disposition: form-data; name="source"; '
+      + 'filename="script.user.js"\r\n';
+    data += 'Content-Type: text/javascript;charset=UTF-8\r\n';
+    data += '\r\n';
+    data += editor.getValue() + '\r\n';
+
+    data += boundary + '--';
+
+
+    xhr.addEventListener('load', function(e) {
+      alert(e.srcElement.status);
+    });
+
+
+    xhr.addEventListener('error', function(e) {
+      alert('Error');
+      alert(JSON.stringify(e));
+    });
+
+    xhr.open('POST', '{{#isLib}}/user/add/lib/new{{/isLib}}{{^isLib}}/user/add/scripts/new{{/isLib}}');
+    xhr.setRequestHeader('Content-Type','multipart/form-data; boundary=' + boundary);
+    xhr.send(data);
+  }
+
+  $('#submit_code').click(function() {
+  sendData();
+  });
       {{/readOnly}}
 
       // Older browser JavaScript work-around for #136

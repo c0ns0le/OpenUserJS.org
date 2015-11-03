@@ -27,22 +27,20 @@
         {{^newScript}}{{> includes/scriptPageHeader.html }}{{/newScript}}
         <pre id="editor">{{source}}</pre>
         {{^readOnly}}
-        <form action="{{#isLib}}/user/add/lib/new{{/isLib}}{{^isLib}}/user/add/scripts/new{{/isLib}}" id="code_form" method="post">
           <input type="hidden" id="source" name="source" value="" />
-          <input type="hidden" name="url" value="{{{url}}}" />
+          <input type="hidden" id="url" name="url" value="{{{url}}}" />
           {{^owner}}<input type="hidden" name="original" value="{{original}}" />{{/owner}}
           <div class="pull-left">
             {{#isLib}}
               {{#newScript}}
-                <strong>Library Name:</strong> <input type="text" name="script_name" value="" required>
+                <strong>Library Name:</strong> <input type="text" id="script_name" name="script_name" value="" required>
               {{/newScript}}
               {{^newScript}}
-                <input type="hidden" name="script_name" value="{{scriptName}}" />
+                <input type="hidden" id="script_name" name="script_name" value="{{scriptName}}" />
               {{/newScript}}
             {{/isLib}}
           </div>
-          <button class="btn btn-success pull-right" type="submit" id="submit_code">{{#owner}}<i class="fa fa-fw fa-save"></i>{{/owner}}{{^owner}}<i class="fa fa-fw fa-code-fork"></i>{{/owner}} Submit Code{{^owner}} as Fork{{/owner}}</button>
-        </form>
+          <button class="btn btn-success pull-right" type="button" id="submit_code">{{#owner}}<i class="fa fa-fw fa-save"></i>{{/owner}}{{^owner}}<i class="fa fa-fw fa-code-fork"></i>{{/owner}} Submit Code{{^owner}} as Fork{{/owner}}</button>
         {{/readOnly}}
       </div>
     </div>

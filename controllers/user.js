@@ -1183,6 +1183,7 @@ var parseJavascriptBlob = function (aJavascriptBlob) {
   return aJavascriptBlob;
 };
 
+// TODO: Unify with submitSource
 exports.uploadScript = function (aReq, aRes, aNext) {
   var authedUser = aReq.session.user;
   var isLib = aReq.params.isLib;
@@ -1191,10 +1192,14 @@ exports.uploadScript = function (aReq, aRes, aNext) {
   var form = null;
 
   if (!/multipart\/form-data/.test(aReq.headers['content-type'])) {
-    return aNext();
+    return statusCodePage(aReq, aRes, aNext, {
+      statusCode: 400,
+      statusMessage: 'Bad Request',
+    });
   }
 
   form = new formidable.IncomingForm();
+  form.encoding = 'utf-8';
   form.parse(aReq, function (aErr, aFields, aFiles) {
     var script = aFiles.script;
     var stream = null;
@@ -1288,6 +1293,14 @@ exports.submitSource = function (aReq, aRes, aNext) {
   var isLib = aReq.params.isLib;
   var source = null;
   var url = null;
+  var form = null;
+
+  if (!/multipart\/form-data/.test(aReq.headers['content-type'])) {
+    return statusCodePage(aReq, aRes, aNext, {
+      statusCode: 400,
+      statusMessage: 'Bad Request',
+    });
+  }
 
   function storeScript(aMeta, aSource) {
     var userjsRegex = /\.user\.js$/;
@@ -1299,7 +1312,7 @@ exports.submitSource = function (aReq, aRes, aNext) {
           + aScript.installName.replace(jsRegex, '') : '/scripts/'
           + aScript.installName.replace(userjsRegex, '')) : decodeURI(aReq.body.url));
 
-        if (!aScript || !aReq.body.original) {
+        if (!aScript || !aReq.body.original) { // alter
           return aRes.redirect(redirectUrl);
         }
 
@@ -1323,39 +1336,62 @@ exports.submitSource = function (aReq, aRes, aNext) {
     });
   }
 
-  source = new Buffer(aReq.body.source);
-  url = aReq.body.url;
-
-  if (isLib) {
-    if (hasMissingExcludeAll(source)) {
+  form = new formidable.IncomingForm();
+  form.encoding = 'utf-8';
+  form.parse(aReq, function (aErr, aFields, aFiles) {
+    var script = aFiles.script;
+    var stream = null;
+    var bufs = [];
+    var bufsConcat = null;
+console.log(JSON.stringify(aFields));
+    url = aFields.url;
+    // Reject missing, non-js, and huge files
+    if (!script || script.type !== 'application/javascript' ||
+      script.size > settings.maximum_upload_script_size) {
       return aRes.redirect(url);
     }
 
-    storeScript(aReq.body.script_name, source);
-  } else {
-    scriptStorage.getMeta([source], function (aMeta) {
-      var name = null;
-      var hasName = false;
-
-      name = scriptStorage.findMeta(aMeta, 'UserScript.name');
-
-      if (!name) {
-        return aRes.redirect(url);
-      }
-
-      name.forEach(function (aElement, aIndex, aArray) {
-        if (!name[aIndex].key) {
-          hasName = true;
-        }
-      });
-
-      if (!hasName) {
-        return aRes.redirect(url);
-      }
-
-      storeScript(aMeta, source);
+    stream = fs.createReadStream(script.path);
+    stream.on('data', function (aData) {
+      bufs.push(aData);
     });
-  }
+
+    stream.on('end', function () {
+      var scriptName = aFields.script_name;
+      source = Buffer.concat(bufs);
+
+      if (isLib) {
+        if (hasMissingExcludeAll(source)) {
+          return aRes.redirect(url);
+        }
+
+        storeScript(aFields.script_name, source);
+      } else {
+        scriptStorage.getMeta([source], function (aMeta) {
+          var name = null;
+          var hasName = false;
+
+          name = scriptStorage.findMeta(aMeta, 'UserScript.name');
+
+          if (!name) {
+            return aRes.redirect(url);
+          }
+
+          name.forEach(function (aElement, aIndex, aArray) {
+            if (!name[aIndex].key) {
+              hasName = true;
+            }
+          });
+
+          if (!hasName) {
+            return aRes.redirect(url);
+          }
+
+          storeScript(aMeta, source);
+        });
+      }
+    });
+  });
 };
 
 function getExistingScript(aReq, aOptions, aAuthedUser, aCallback) {
